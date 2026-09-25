@@ -3,7 +3,7 @@ import json
 import numpy as np
 import pytest
 
-from examples.loader import load_example_instance
+from examples.loader import load_example_instance, solve_example_instance
 from heuristics import GRASPSolver, LocalSearchOptimizer, RandomAssignmentSolver
 from models import RegisterInstance, RegisterLayout
 
@@ -30,11 +30,11 @@ def test_invalid_assignment_is_rejected():
 
 
 def test_grasp_returns_complete_solution():
-    solution, history = GRASPSolver(make_instance(), seed=3).solve(4, verbose=False)
-    assert solution.is_complete
-    assert len(set(solution.pi)) == solution.N
-    assert len(history) == 4
-    assert history[-1] == pytest.approx(solution.cost)
+    result = GRASPSolver(make_instance(), seed=3).solve(4)
+    assert result.solution.is_complete
+    assert len(set(result.solution.pi)) == result.solution.N
+    assert len(result.history) == 4
+    assert result.history[-1] == pytest.approx(result.objective_value)
 
 
 def test_best_improvement_is_supported():
@@ -47,19 +47,35 @@ def test_best_improvement_is_supported():
 def test_all_fixed_layouts_are_compared():
     instance = make_instance()
     layouts = [instance.sites, instance.sites[[0, 1, 2, 3, 4, 5, 6, 8, 7]]]
-    index, solution, _ = GRASPSolver.solve_layouts(layouts, instance.W, seed=5, max_iterations=2)
-    assert index in {0, 1}
-    assert solution.is_complete
+    result = GRASPSolver.solve_layouts(layouts, instance.W, seed=5, max_iterations=2)
+    assert result.best_layout_index in {0, 1}
+    assert result.best_result.solution.is_complete
+    assert len(result.results) == 2
+    assert result.total_elapsed_seconds >= 0.0
 
 
 def test_random_baseline_returns_feasible_reproducible_solution():
     instance = make_instance()
-    first, first_history = RandomAssignmentSolver(instance, seed=9).solve(4, verbose=False)
-    second, second_history = RandomAssignmentSolver(instance, seed=9).solve(4, verbose=False)
-    assert first.is_complete
-    assert len(set(first.pi)) == first.N
-    assert first.pi == second.pi
-    assert first_history == second_history
+    first = RandomAssignmentSolver(instance, seed=9).solve(4)
+    second = RandomAssignmentSolver(instance, seed=9).solve(4)
+    assert first.solution.is_complete
+    assert len(set(first.solution.pi)) == first.solution.N
+    assert first.solution.pi == second.solution.pi
+    assert first.history == second.history
+
+
+def test_example_loader_accepts_random_solver(tmp_path):
+    target = np.array([[0.0, 1.0], [1.0, 0.0]], dtype=float)
+    layout = np.array([[0.0, 0.0], [2.0, 0.0]], dtype=float)
+    (tmp_path / "Q.json").write_text(str(target.tolist()).replace("'", '"'))
+    (tmp_path / "layout_0.json").write_text(str({"sites": layout.tolist()}).replace("'", '"'))
+
+    results = load_example_instance(tmp_path)
+    assert results[0].shape == (2, 2)
+
+    solver_results = solve_example_instance(tmp_path, solver="random", solver_kwargs={"seed": 7}, max_iterations=2)
+    assert len(solver_results) == 1
+    assert solver_results[0]["cost"] >= 0.0
 
 
 def test_example_instance_loader_reads_matrix_and_layers(tmp_path):
@@ -68,8 +84,8 @@ def test_example_instance_loader_reads_matrix_and_layers(tmp_path):
     layer_1 = np.array([[0.5, 0.5], [2.5, 0.5], [0.5, 2.5]], dtype=float)
 
     (tmp_path / "Q.json").write_text(json.dumps(target.tolist()))
-    (tmp_path / "layer_0.json").write_text(json.dumps({"sites": layer_0.tolist()}))
-    (tmp_path / "layer_1.json").write_text(json.dumps({"sites": layer_1.tolist()}))
+    (tmp_path / "layout_0.json").write_text(json.dumps({"sites": layer_0.tolist()}))
+    (tmp_path / "layout_1.json").write_text(json.dumps({"sites": layer_1.tolist()}))
 
     loaded_Q, loaded_layers = load_example_instance(tmp_path)
 

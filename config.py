@@ -18,8 +18,7 @@ class Config:
 	seed: Optional[int] = 42
 	max_iterations: int = 50
 	local_search_strategy: str = "first_improvement"
-	verbose: bool = True
-	log_level: int = logging.DEBUG # Choose logging.DEBUG or logging.INFO
+	log_level: int = logging.INFO # Choose logging.DEBUG or logging.INFO
 
 
 DEFAULT_CONFIG = Config()

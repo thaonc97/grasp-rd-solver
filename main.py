@@ -5,8 +5,8 @@ import logging
 import numpy as np
 
 from config import DEFAULT_CONFIG
-from examples.loader import solve_example_instance
-from heuristics import GRASPSolver
+from examples import loader
+from heuristics import GRASPSolver, RandomAssignmentSolver
 from logging_utils import setup_logging
 from models import RegisterInstance
 
@@ -23,22 +23,22 @@ def example() -> None:
     np.fill_diagonal(target, DEFAULT_CONFIG.target_diagonal)
 
     instance = RegisterInstance(target, layout, config=DEFAULT_CONFIG)
-    solution, history = GRASPSolver(instance, config=DEFAULT_CONFIG).solve(
-        DEFAULT_CONFIG.max_iterations,
-        DEFAULT_CONFIG.verbose,
-    )
-    logger.info("Best cost: %.6f", solution.cost)
-    logger.info("Assignment: %s", solution.pi)
-    logger.info("History length: %d", len(history))
+    result = GRASPSolver(instance, config=DEFAULT_CONFIG).solve()
+    logger.info("Best cost: %.6f", result.objective_value)
+    logger.info("Assignment: %s", result.solution.pi)
+    logger.info("History length: %d", len(result.history))
 
 
 if __name__ == "__main__":
     setup_logging(DEFAULT_CONFIG.log_level)
-    example()
+    # example()
+    atoms_example = 4 # 
+    layout_size_example = 9 # number trapping sites
+    instance_location = f"examples/instances/instance_{atoms_example}_atoms_{layout_size_example}_sites"
 
-    results = solve_example_instance(
-        "examples/instances/instance_4_atoms_9_sites",
-        max_iterations=20,
-        verbose=False
+    q, layouts = loader.load_example_instance(instance_location)
+    solve_results = RandomAssignmentSolver.solve_layouts(
+        layouts,
+        q,
+        max_iterations=DEFAULT_CONFIG.max_iterations,
     )
-    print(results)

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Optional, Sequence
+from dataclasses import dataclass
+from typing import List, Optional, Sequence
 
 import numpy as np
 
@@ -14,7 +15,7 @@ class RegisterInstance:
 
     def __init__(
         self,
-        target_W: np.ndarray,
+        target_Q: np.ndarray,
         site_positions: np.ndarray,
         C6: Optional[float] = None,
         min_site_distance: Optional[float] = None,
@@ -22,17 +23,17 @@ class RegisterInstance:
         config: Config = DEFAULT_CONFIG,
     ) -> None:
         """Validate one calibrated layout and precompute its interactions."""
-        target_W = np.asarray(target_W, dtype=float)
+        target_Q = np.asarray(target_Q, dtype=float)
         site_positions = np.asarray(site_positions, dtype=float)
         C6, min_site_distance, max_radius = self._resolve_hardware_config(
             C6, min_site_distance, max_radius, config
         )
-        self._validate_inputs(target_W, site_positions, C6, min_site_distance, max_radius)
+        self._validate_inputs(target_Q, site_positions, C6, min_site_distance, max_radius)
 
-        self.W = target_W.copy()
+        self.W = target_Q.copy()
         self.sites = site_positions.copy()
         self.C6 = float(C6)
-        self.N = target_W.shape[0]
+        self.N = target_Q.shape[0]
         self.M = site_positions.shape[0]
         self.min_site_distance = float(min_site_distance)
         self.max_radius = max_radius
@@ -56,26 +57,26 @@ class RegisterInstance:
     @classmethod
     def _validate_inputs(
         cls,
-        target_W: np.ndarray,
+        target_Q: np.ndarray,
         site_positions: np.ndarray,
         C6: float,
         min_site_distance: float,
         max_radius: Optional[float],
     ) -> None:
         """Run all input validations required before instance state is created."""
-        cls._validate_target(target_W)
+        cls._validate_target(target_Q)
         cls._validate_sites(site_positions)
         cls._validate_hardware_limits(C6, min_site_distance, max_radius)
 
     @staticmethod
-    def _validate_target(target_W: np.ndarray) -> None:
+    def _validate_target(target_Q: np.ndarray) -> None:
         """Ensure the target interaction matrix is finite, square, and symmetric."""
-        if target_W.ndim != 2 or target_W.shape[0] != target_W.shape[1]:
-            raise ValueError("target_W must be a square matrix")
-        if not np.allclose(target_W, target_W.T):
-            raise ValueError("target_W must be symmetric")
-        if not np.all(np.isfinite(target_W)):
-            raise ValueError("target_W must be finite")
+        if target_Q.ndim != 2 or target_Q.shape[0] != target_Q.shape[1]:
+            raise ValueError("target_Q must be a square matrix")
+        if not np.allclose(target_Q, target_Q.T):
+            raise ValueError("target_Q must be symmetric")
+        if not np.all(np.isfinite(target_Q)):
+            raise ValueError("target_Q must be finite")
 
     @staticmethod
     def _validate_sites(site_positions: np.ndarray) -> None:
@@ -199,3 +200,29 @@ class RegisterLayout:
         copied = RegisterLayout(self.instance, self.pi)
         copied.cost = self.cost
         return copied
+
+
+@dataclass(frozen=True)
+class SolveResult:
+    """Result and metrics from one solver run."""
+
+    solution: RegisterLayout
+    objective_value: float
+    history: List[float]
+    elapsed_seconds: float
+    layout_index: Optional[int] = None
+
+
+@dataclass(frozen=True)
+class LayoutSolveResult:
+    """Results from solving every layout and identifying the best one."""
+
+    results: List[SolveResult]
+    best_layout_index: int
+    best_result: SolveResult
+    total_elapsed_seconds: float
+
+    @property
+    def objective_value(self) -> float:
+        """Return the objective value of the best layout."""
+        return self.best_result.objective_value

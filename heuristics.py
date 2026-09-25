@@ -10,8 +10,7 @@ from typing import List, Optional, Sequence, Tuple
 import numpy as np
 
 from config import DEFAULT_CONFIG, Config
-from logging_utils import setup_logging
-from models import RegisterInstance, RegisterLayout
+from models import LayoutSolveResult, RegisterInstance, RegisterLayout, SolveResult
 
 logger = logging.getLogger(__name__)
 
@@ -88,47 +87,74 @@ class GRASPSolver:
         if local_search_strategy is None:
             local_search_strategy = config.local_search_strategy
         self.instance = instance
+        self.config = config
         self.rng = random.Random(config.seed if seed is None else seed)
         self.builder = GreedyRandomizedBuilder(instance, alpha, self.rng)
         self.local_search = LocalSearchOptimizer(instance, local_search_strategy)
 
-    def solve(self, max_iterations: int = 50, verbose: bool = True) -> Tuple[RegisterLayout, List[float]]:
-        if max_iterations <= 0:
+    def solve(self, max_iterations: Optional[int] = None) -> SolveResult:
+        iterations = self.config.max_iterations if max_iterations is None else max_iterations
+        if iterations <= 0:
             raise ValueError("max_iterations must be positive")
         best_layout: Optional[RegisterLayout] = None
         history: List[float] = []
         started = time.perf_counter()
-        logger.info("Starting GRASP solve: iterations=%d, alpha=%.3f", max_iterations, self.builder.alpha)
-        for iteration in range(1, max_iterations + 1):
+        logger.info("Starting GRASP solve: iterations=%d, alpha=%.3f", iterations, self.builder.alpha)
+        for iteration in range(1, iterations + 1):
             candidate = self.local_search.optimize(self.builder.build())
             if best_layout is None or candidate.cost < best_layout.cost:
                 best_layout = candidate.copy()
             history.append(best_layout.cost)
             logger.debug("GRASP iteration=%d: candidate_cost=%.6f, best_cost=%.6f", iteration, candidate.cost, best_layout.cost)
-            if verbose and (iteration == 1 or iteration % 10 == 0):
-                logger.info("GRASP %3d/%d: candidate=%.6f, best=%.6f", iteration, max_iterations, candidate.cost, best_layout.cost)
-        if verbose:
-            logger.info("Optimization completed in %.3f seconds", time.perf_counter() - started)
-        return best_layout, history
+            if iteration == 1 or iteration % 10 == 0:
+                logger.info("GRASP %3d/%d: candidate=%.6f, best=%.6f", iteration, iterations, candidate.cost, best_layout.cost)
+        elapsed_seconds = time.perf_counter() - started
+        logger.info("Optimization completed in %.3f seconds", elapsed_seconds)
+        assert best_layout is not None
+        return SolveResult(
+            solution=best_layout,
+            objective_value=best_layout.cost,
+            history=history,
+            elapsed_seconds=elapsed_seconds,
+        )
 
     @staticmethod
     def solve_layouts(
-        layouts: Sequence[np.ndarray], target_W: np.ndarray, C6: Optional[float] = None,
+        layouts: Sequence[np.ndarray], target_Q: np.ndarray, C6: Optional[float] = None,
         alpha: Optional[float] = None, max_iterations: Optional[int] = None,
-        seed: Optional[int] = None, verbose: Optional[bool] = None,
+        seed: Optional[int] = None,
         config: Config = DEFAULT_CONFIG,
-    ) -> Tuple[int, RegisterLayout, List[float]]:
+    ) -> LayoutSolveResult:
         if not layouts:
             raise ValueError("layouts must contain at least one layout")
+        started = time.perf_counter()
         seeds = random.Random(config.seed if seed is None else seed)
-        best = None
+        results: List[SolveResult] = []
+        best_result: Optional[SolveResult] = None
+        best_layout_index: Optional[int] = None
         for index, sites in enumerate(layouts):
-            solver = GRASPSolver(RegisterInstance(target_W, sites, C6, config=config), alpha, seeds.randrange(2**63), config=config)
-            solution, history = solver.solve(max_iterations or config.max_iterations, config.verbose if verbose is None else verbose)
-            result = (index, solution, history)
-            if best is None or solution.cost < best[1].cost:
-                best = result
-        return best
+            logger.info("Solving layout %d/%d", index + 1, len(layouts))
+            solver = GRASPSolver(RegisterInstance(target_Q, sites, C6, config=config), alpha, seeds.randrange(2**63), config=config)
+            result = solver.solve(max_iterations)
+            result = SolveResult(
+                solution=result.solution,
+                objective_value=result.objective_value,
+                history=result.history,
+                elapsed_seconds=result.elapsed_seconds,
+                layout_index=index,
+            )
+            results.append(result)
+            if best_result is None or result.objective_value < best_result.objective_value:
+                best_result = result
+                best_layout_index = index
+        elapsed_seconds = time.perf_counter() - started
+        assert best_result is not None and best_layout_index is not None
+        return LayoutSolveResult(
+            results=results,
+            best_layout_index=best_layout_index,
+            best_result=best_result,
+            total_elapsed_seconds=elapsed_seconds,
+        )
 
 
 class RandomAssignmentSolver:
@@ -136,6 +162,7 @@ class RandomAssignmentSolver:
 
     def __init__(self, instance: RegisterInstance, seed: Optional[int] = None, config: Config = DEFAULT_CONFIG) -> None:
         self.instance = instance
+        self.config = config
         self.rng = random.Random(config.seed if seed is None else seed)
 
     def _build_random_layout(self) -> RegisterLayout:
@@ -146,51 +173,75 @@ class RandomAssignmentSolver:
     def solve(
         self,
         max_iterations: Optional[int] = None,
-        verbose: Optional[bool] = None,
-        config: Config = DEFAULT_CONFIG,
-    ) -> Tuple[RegisterLayout, List[float]]:
+    ) -> SolveResult:
         """Return the best assignment found by repeated random sampling."""
-        iterations = config.max_iterations if max_iterations is None else max_iterations
-        show_progress = config.verbose if verbose is None else verbose
+        iterations = self.config.max_iterations if max_iterations is None else max_iterations
         if iterations <= 0:
             raise ValueError("max_iterations must be positive")
 
         best_layout: Optional[RegisterLayout] = None
         history: List[float] = []
-        logger.info("Starting random baseline solve: iterations=%d", iterations)
+        started = time.perf_counter()
+        logger.info("Starting random assignment solve: iterations=%d", iterations)
         for iteration in range(1, iterations + 1):
             candidate = self._build_random_layout()
             if best_layout is None or candidate.cost < best_layout.cost:
                 best_layout = candidate
             history.append(best_layout.cost)
             logger.debug("Random iteration=%d: candidate_cost=%.6f, best_cost=%.6f", iteration, candidate.cost, best_layout.cost)
-            if show_progress and (iteration == 1 or iteration % 10 == 0):
+            if iteration == 1 or iteration % 10 == 0:
                 logger.info("Random %3d/%d: best=%.6f", iteration, iterations, best_layout.cost)
-        return best_layout, history
+        elapsed_seconds = time.perf_counter() - started
+        logger.info("Random optimization completed in %.3f seconds", elapsed_seconds)
+        assert best_layout is not None
+        return SolveResult(
+            solution=best_layout,
+            objective_value=best_layout.cost,
+            history=history,
+            elapsed_seconds=elapsed_seconds,
+        )
 
     @staticmethod
     def solve_layouts(
         layouts: Sequence[np.ndarray],
-        target_W: np.ndarray,
+        target_Q: np.ndarray,
         C6: Optional[float] = None,
         max_iterations: Optional[int] = None,
         seed: Optional[int] = None,
-        verbose: Optional[bool] = None,
         config: Config = DEFAULT_CONFIG,
-    ) -> Tuple[int, RegisterLayout, List[float]]:
+    ) -> LayoutSolveResult:
         """Run the random baseline independently on each calibrated layout."""
         if not layouts:
             raise ValueError("layouts must contain at least one layout")
+        started = time.perf_counter()
         seeds = random.Random(config.seed if seed is None else seed)
-        best = None
+        results: List[SolveResult] = []
+        best_result: Optional[SolveResult] = None
+        best_layout_index: Optional[int] = None
         for index, sites in enumerate(layouts):
+            logger.info("Solving layout %d/%d", index + 1, len(layouts))
             solver = RandomAssignmentSolver(
-                RegisterInstance(target_W, sites, C6, config=config),
+                RegisterInstance(target_Q, sites, C6, config=config),
                 seed=seeds.randrange(2**63),
                 config=config,
             )
-            solution, history = solver.solve(max_iterations, verbose, config)
-            result = (index, solution, history)
-            if best is None or solution.cost < best[1].cost:
-                best = result
-        return best
+            result = solver.solve(max_iterations)
+            result = SolveResult(
+                solution=result.solution,
+                objective_value=result.objective_value,
+                history=result.history,
+                elapsed_seconds=result.elapsed_seconds,
+                layout_index=index,
+            )
+            results.append(result)
+            if best_result is None or result.objective_value < best_result.objective_value:
+                best_result = result
+                best_layout_index = index
+        elapsed_seconds = time.perf_counter() - started
+        assert best_result is not None and best_layout_index is not None
+        return LayoutSolveResult(
+            results=results,
+            best_layout_index=best_layout_index,
+            best_result=best_result,
+            total_elapsed_seconds=elapsed_seconds,
+        )
