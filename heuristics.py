@@ -10,7 +10,7 @@ from typing import List, Optional, Sequence, Tuple
 import numpy as np
 
 from config import DEFAULT_CONFIG, Config
-from models import LayoutSolveResult, RegisterInstance, RegisterLayout, SolveResult
+from models import RDSolveResult, RegisterInstance, RegisterLayout, SolveResult
 
 logger = logging.getLogger(__name__)
 
@@ -119,12 +119,12 @@ class GRASPSolver:
         )
 
     @staticmethod
-    def solve_layouts(
+    def solve_rd(
         layouts: Sequence[np.ndarray], target_Q: np.ndarray, C6: Optional[float] = None,
         alpha: Optional[float] = None, max_iterations: Optional[int] = None,
         seed: Optional[int] = None,
         config: Config = DEFAULT_CONFIG,
-    ) -> LayoutSolveResult:
+    ) -> RDSolveResult:
         if not layouts:
             raise ValueError("layouts must contain at least one layout")
         started = time.perf_counter()
@@ -149,7 +149,7 @@ class GRASPSolver:
                 best_layout_index = index
         elapsed_seconds = time.perf_counter() - started
         assert best_result is not None and best_layout_index is not None
-        return LayoutSolveResult(
+        return RDSolveResult(
             results=results,
             best_layout_index=best_layout_index,
             best_result=best_result,
@@ -209,7 +209,7 @@ class RandomAssignmentSolver:
         max_iterations: Optional[int] = None,
         seed: Optional[int] = None,
         config: Config = DEFAULT_CONFIG,
-    ) -> LayoutSolveResult:
+    ) -> RDSolveResult:
         """Run the random baseline independently on each calibrated layout."""
         if not layouts:
             raise ValueError("layouts must contain at least one layout")
@@ -239,7 +239,7 @@ class RandomAssignmentSolver:
                 best_layout_index = index
         elapsed_seconds = time.perf_counter() - started
         assert best_result is not None and best_layout_index is not None
-        return LayoutSolveResult(
+        return RDSolveResult(
             results=results,
             best_layout_index=best_layout_index,
             best_result=best_result,

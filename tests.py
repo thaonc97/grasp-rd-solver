@@ -47,7 +47,7 @@ def test_best_improvement_is_supported():
 def test_all_fixed_layouts_are_compared():
     instance = make_instance()
     layouts = [instance.sites, instance.sites[[0, 1, 2, 3, 4, 5, 6, 8, 7]]]
-    result = GRASPSolver.solve_layouts(layouts, instance.W, seed=5, max_iterations=2)
+    result = GRASPSolver.solve_rd(layouts, instance.W, seed=5, max_iterations=2)
     assert result.best_layout_index in {0, 1}
     assert result.best_result.solution.is_complete
     assert len(result.results) == 2

@@ -204,7 +204,7 @@ class RegisterLayout:
 
 @dataclass(frozen=True)
 class SolveResult:
-    """Result and metrics from one solver run."""
+    """Result and metrics from one solver run one layout."""
 
     solution: RegisterLayout
     objective_value: float
@@ -214,7 +214,7 @@ class SolveResult:
 
 
 @dataclass(frozen=True)
-class LayoutSolveResult:
+class RDSolveResult:
     """Results from solving every layout and identifying the best one."""
 
     results: List[SolveResult]

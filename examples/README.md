@@ -44,7 +44,7 @@ q, layouts = load_example_instance(
 )
 config = Config(seed=7, max_iterations=50)
 
-result = GRASPSolver.solve_layouts(layouts, q, config=config)
+result = GRASPSolver.solve_rd(layouts, q, config=config)
 
 for layout_result in result.results:
 	print(

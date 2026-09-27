@@ -2,6 +2,10 @@
 
 This repository implements a GRASP heuristic for Version 2 of the register-design problem. Each calibrated layout is optimized independently, and the best layout is returned.
 
+The algorithm detail (GRASP) can be found in attached answer file.
+
+The UML class diagrams are given in `UML-high-level.md`  and `UML.md` files.
+
 Runtime defaults live in `config.py`; change `DEFAULT_CONFIG` for a normal experiment or create a separate `Config` for an experiment-specific run.
 
 ## Files
@@ -23,7 +27,7 @@ python -m pytest tests.py -q
 python main.py
 ```
 
-To solve a stored JSON instance directly, in root:
+To solve an example JSON instance directly, in root:
 
 ```python
 from examples import loader
@@ -32,7 +36,7 @@ from heuristics import GRASPSolver
 instance_dir = "examples/instances/instance_4_atoms_9_sites"
 q, layouts = loader.load_example_instance(instance_dir)
 
-result = GRASPSolver.solve_layouts(
+result = GRASPSolver.solve_rd(
 	layouts,
 	q,
 	max_iterations=50,
@@ -43,7 +47,7 @@ print(f"Best cost: {result.objective_value:.6f}")
 print(f"Total time: {result.total_elapsed_seconds:.3f} seconds")
 ```
 
-The same call can use `RandomAssignmentSolver` instead of `GRASPSolver`. Each `result.results` entry contains the objective value, iteration history, and elapsed time for one layout.
+. Each `result.results` entry contains the objective value, iteration history, and elapsed time for one layout.
 
 To override settings without editing the heuristic:
 
