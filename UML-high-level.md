@@ -7,7 +7,7 @@ classDiagram
     direction LR
 
     class RDProblem {
-        <<conceptual; not implemented>>
+        <<conceptual>>
         Multi-layout RD input
     }
 
