@@ -32,7 +32,7 @@ def example() -> None:
 if __name__ == "__main__":
     setup_logging(DEFAULT_CONFIG.log_level)
     # example()
-    atoms_example = 4 # 
+    atoms_example = 4 # number of atoms
     layout_size_example = 9 # number trapping sites
     instance_location = f"examples/instances/instance_{atoms_example}_atoms_{layout_size_example}_sites"
 
