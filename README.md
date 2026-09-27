@@ -4,7 +4,7 @@ This repository implements a GRASP heuristic for Version 2 of the register-desig
 
 The algorithm detail (GRASP) can be found in attached answer file.
 
-The UML class diagrams are given in `UML-high-level.md`  and `UML.md` files.
+The UML class diagrams are given in `UML` folder.
 
 Runtime defaults live in `config.py`; change `DEFAULT_CONFIG` for a normal experiment or create a separate `Config` for an experiment-specific run.
 
